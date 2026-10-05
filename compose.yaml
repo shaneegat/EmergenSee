@@ -1,0 +1,48 @@
+name: emergensee-local
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: Emergensee
+      POSTGRES_USER: emergensee
+      POSTGRES_PASSWORD: local-demo-only
+    volumes:
+      - database:/var/lib/postgresql/data
+      - ./back/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U emergensee -d Emergensee"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  backend:
+    build: ./back
+    environment:
+      DB_NAME: Emergensee
+      DB_USER: emergensee
+      DB_PASSWORD: local-demo-only
+      DB_HOST: db
+      API_HOST: 0.0.0.0
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+    ports:
+      - "127.0.0.1:8001-8011:8001-8011"
+    volumes:
+      - patient-images:/app/app/dal/images
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; [urllib.request.urlopen(f'http://127.0.0.1:{p}/health', timeout=3) for p in range(8001, 8012)]"]
+      interval: 10s
+      timeout: 35s
+      start_period: 180s
+      retries: 30
+  frontend:
+    build:
+      context: .
+      dockerfile: front/Dockerfile
+    ports:
+      - "127.0.0.1:4200:4200"
+volumes:
+  database:
+  patient-images:
